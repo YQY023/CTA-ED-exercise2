@@ -1,0 +1,71 @@
+---
+title: "CTA_exercise2_Q1_Yiming"
+author: "Yiming Qi"
+date: "2024-02-14"
+output: html_document
+---
+
+#Preparation
+```{r, message=F}
+install.packages("textdata")
+install.packages("academictwitteR")
+
+library(kableExtra)
+library(tidyverse) 
+library(readr) 
+library(stringr) 
+library(tidytext) 
+library(quanteda) 
+library(textdata)
+library(dplyr)
+library(academictwitteR)
+
+getwd()
+```
+
+#Process
+```{r, eval = F}
+#Load
+tweets  <- readRDS(gzcon(url("https://github.com/cjbarrie/CTA-ED/blob/main/data/sentanalysis/newstweets.rds?raw=true")))
+
+#Rename
+tweets <- tweets %>%
+  select( text, created_at, user_name) %>%
+  rename(newspaper = user_name,
+         tweet = text)
+
+#Lowercase and tokenize
+tidy_tweets <- tweets %>% 
+  mutate(desc = tolower(tweet)) %>%
+  unnest_tokens(word, desc) %>%
+  filter(str_detect(word, "[a-z]"))
+
+#Remove stop words
+tidy_tweets <- tidy_tweets %>%
+    filter(!word %in% stop_words$word)
+
+#Arrange in ascending order
+tidy_tweets <- tidy_tweets %>%
+  mutate(date = as.Date(created_at)) %>%
+  arrange(date)
+
+#Get dictionaries
+get_sentiments("afinn")
+
+#Gen data variable, order and format date
+tidy_tweets$date <- as.Date(tidy_tweets$created_at)
+tidy_tweets <- tidy_tweets %>%
+mutate(order = 1:nrow(tidy_tweets))
+
+#Making graph
+tidy_tweets %>%
+  inner_join(get_sentiments("afinn")) %>%
+  group_by(newspaper) %>% 
+  summarise(sentiment = mean(value)) %>% 
+  
+  ggplot(aes(newspaper, sentiment)) +
+  geom_point(alpha=0.5) +
+  geom_smooth(method= loess, alpha=0.25) +
+  labs(x = "Newspaper Source", y = "Average Sentiment", title = "Sentiment Analysis by Newspaper Source") +
+  ylab("afinn sentiment")
+```
