@@ -1,0 +1,79 @@
+---
+title: "CTA_exercise2_Q2_Yiming"
+author: "Yiming Qi"
+date: "2024-02-14"
+output: html_document
+---
+
+#Preparation
+
+```{r, message=F}
+library(tidyverse)
+library(tidytext)
+
+getwd()
+```
+
+#Process
+```{r, eval = F}
+# Load
+tweets <- readRDS(gzcon(url("https://github.com/cjbarrie/CTA-ED/blob/main/data/sentanalysis/newstweets.rds?raw=true")))
+
+# Rename
+tweets <- tweets %>%
+  select(user_username, text, created_at, user_name,
+         retweet_count, like_count, quote_count) %>%
+  rename(username = user_username,
+         newspaper = user_name,
+         tweet = text)
+
+# Lowercase and tokenise
+tidy_tweets <- tweets %>% 
+  mutate(desc = tolower(tweet)) %>%
+  unnest_tokens(word, desc) %>%
+  filter(str_detect(word, "[a-z]"))
+
+# Remove stop words
+tidy_tweets <- tidy_tweets %>%
+    filter(!word %in% stop_words$word)
+
+# Date in ascending order
+tidy_tweets <- tidy_tweets %>%
+  mutate(date = as.Date(created_at)) %>%
+  arrange(date)
+```
+
+#Dictionary-based filter
+```{r}
+# Dictionary of anxiety
+anxiety_words <- c('anxiety', 'anxious', 'worry', 'worried', 'tense', 'nervous', 'uncomfortable', 'uneasy', 'unsettled', 'stress', 'stressful', 'restless', 'pressure')
+
+# Get total tweets per day
+totals <- tidy_tweets %>%
+  #每个推文为1
+  mutate(obs=1) %>%
+  group_by(date) %>%
+  summarise(sum_words = sum(obs))
+
+# Calculate the proportion of containing anxiety
+tidy_tweets %>%
+  mutate(obs=1) %>%
+  #grep用来匹配推文中包含的目标词
+  filter(grepl(paste0(anxiety_words, collapse = "|"),word, ignore.case = T)) %>%
+  group_by(date) %>%
+  summarise(sum_mwords = sum(obs)) %>%
+  #和之前的total合并
+  full_join(totals, by="date") %>%
+  #将NA替换成0
+  mutate(sum_mwords= ifelse(is.na(sum_mwords), 0, sum_mwords),
+  #计算比例
+  pctmwords = sum_mwords/sum_words) %>%
+  
+# Plot the proportion of anxiety words per day
+  ggplot(aes(date, pctmwords)) +
+  #图层透明度
+  geom_point(alpha=0.5) +
+  #添加平滑曲线
+  geom_smooth(method= loess, alpha=0.25) +
+  xlab("Date") + ylab("% anxiety words")
+```
